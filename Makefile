@@ -1,3 +1,8 @@
+################################################################################
+# Copyright (c) 2015 Jason Palm
+# See LICENSE file for licensing.
+################################################################################
+
 ARCH := $(shell getconf LONG_BIT)
 
 CFLAGS_32 = -std=gnu99 -DLDAP_DEPRECATED -Wall -g 

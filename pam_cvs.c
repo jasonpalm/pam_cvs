@@ -1,3 +1,8 @@
+/*******************************************************************************
+ * Copyright (c) 2015 Jason Palm
+ * See LICENSE file for licensing.
+ */
+
 #define PAM_SM_ACCOUNT
 #define PAM_SM_AUTH
 #define PAM_SM_SESSION
