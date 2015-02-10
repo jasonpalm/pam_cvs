@@ -1,0 +1,52 @@
+This is a PAM module to authenticate Linux CVS against an Active Directory Server (ADS) using the ADS's
+LDAP service.
+
+To use this module:
+
+1. Install CVS from source with PAM support. E.g.
+
+	# (Make sure pam-devel is installed on your system).
+	sudo yum install pam-devel
+
+	wget http://ftp.gnu.org/non-gnu/cvs/source/feature/1.12.13/cvs-1.12.13.tar.gz
+	zcat cvs-1.12.13.tar.gz |tar -xvf -
+	cd cvs-1.12.13
+
+	./configure --enable-pam
+	make 
+	sudo make install
+	
+2. Configure pam for CVS. Edit /etc/pam.d/cvs :
+
+		#%PAM-1.0
+
+		auth            sufficient      pam_cvs.so cvs_user ldap_host ldap_port  
+		account         sufficient      pam_cvs.so
+		session         sufficient      pam_cvs.so
+	
+	# NOTE the arguments to pam_cvs.so in the auth section: 
+	# a) the account CVS runs as, 
+	# b) the LDAP host to authenticate against, and 
+	# c) the LDAP port 
+	
+3. Build and install the pam_cvs.so PAM module:
+
+	make
+	sudo make install
+	
+4. Edit your repositories' CVSROOT/config files to include
+
+	SystemAuth=yes
+	
+5. Ensure that the user that CVS runs as owns all repository files.
+	
+
+ADS's LDAP service will accept usernames in one of the following forms:
+
+	DOMAIN\\user.name
+	user.name@email.address.tld
+	
+
+The module logs to syslog using AUTHPRIV. Check /var/log/secure (or the appropriate log for your system)
+for logging output.
+
