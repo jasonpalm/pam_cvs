@@ -1,15 +1,16 @@
 This is a PAM module to authenticate Linux CVS against an Active Directory Server (ADS) using the ADS's
 LDAP service.
 
-To use this module:
+To install this module:
 
 1. Install CVS from source with PAM support. E.g.
 
-	# (Make sure pam-devel is installed on your system).
-	sudo yum install pam-devel
-
+	# a) (Make sure pam-devel and openldap-devel are installed on your system).
+	
+	# b) Get and install the latest 1.12.x release of cvs with PAM support. E.g.
+	
 	wget http://ftp.gnu.org/non-gnu/cvs/source/feature/1.12.13/cvs-1.12.13.tar.gz
-	zcat cvs-1.12.13.tar.gz |tar -xvf -
+	tar -xzf cvs-1.12.13.tar.gz
 	cd cvs-1.12.13
 
 	./configure --enable-pam
@@ -20,7 +21,7 @@ To use this module:
 
 		#%PAM-1.0
 
-		auth            sufficient      pam_cvs.so cvs_user ldap_host ldap_port  
+		auth            sufficient      pam_cvs.so cvs_user ldap_host ldap_port ads_domain
 		account         sufficient      pam_cvs.so
 		session         sufficient      pam_cvs.so
 	
@@ -28,6 +29,8 @@ To use this module:
 	# a) the account CVS runs as, 
 	# b) the LDAP host to authenticate against, and 
 	# c) the LDAP port 
+	# d) the Active Directory Server Domain. Will be automatically prepended to the supplied username
+	     with a '\' separator.
 	
 3. Build and install the pam_cvs.so PAM module:
 
@@ -41,10 +44,9 @@ To use this module:
 5. Ensure that the user that CVS runs as owns all repository files.
 	
 
-ADS's LDAP service will accept usernames in one of the following forms:
+When authenticating, supply the username *without* the ADS domain. E.g.
 
-	DOMAIN\\user.name
-	user.name@email.address.tld
+	user.name
 	
 
 The module logs to syslog using AUTHPRIV. Check /var/log/secure (or the appropriate log for your system)
