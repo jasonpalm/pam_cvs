@@ -20,16 +20,15 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-ARCH := $(shell getconf LONG_BIT)
-
 CFLAGS_32 = -std=gnu99 -DLDAP_DEPRECATED -Wall -g 
 CFLAGS_64 = -std=gnu99 -DLDAP_DEPRECATED -Wall -g -m64
 
 PAM_DIR_32 = /lib/security/
 PAM_DIR_64 = /lib64/security/
 
-CFLAGS  = $(CFLAGS_$(ARCH))
-PAM_DIR = $(PAM_DIR_$(ARCH))
+ARCH              = $(shell getconf LONG_BIT)
+PAM_DIR           = $(PAM_DIR_$(ARCH))
+override CFLAGS  += $(CFLAGS_$(ARCH))
 
 all: pam
 

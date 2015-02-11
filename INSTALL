@@ -34,8 +34,13 @@ To install this module:
 	
 3. Build and install the pam_cvs.so PAM module:
 
-	make
-	sudo make install
+		make
+		sudo make install
+	
+   If you want extra logging, define DEBUG when building:
+	
+		make CFLAGS=-DDEBUG
+		sudo make install
 	
 4. Edit your repositories' CVSROOT/config files to include
 

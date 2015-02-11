@@ -195,7 +195,9 @@ PAM_EXTERN int pam_sm_authenticate(pam_handle_t *pamh, int flags, int argc, cons
 	char *password;
 	char *ldap_username;
 
-	// log_call(pamh, "pam_sm_authenticate", argc, argv);
+#ifdef DEBUG
+	log_call(pamh, "pam_sm_authenticate", argc, argv);
+#endif
 
 	if(argc != 4)
 	{
@@ -214,8 +216,10 @@ PAM_EXTERN int pam_sm_authenticate(pam_handle_t *pamh, int flags, int argc, cons
 		return PAM_AUTHINFO_UNAVAIL;
 	}
 
-	// syslog(LOG_NOTICE, "Using effective user %s, LDAP %s:%d, and domain %s", 
-	// 	cvs_user, ldap_host, ldap_port, domain);
+#ifdef DEBUG
+	syslog(LOG_NOTICE, "Using effective user %s, LDAP %s:%d, and domain %s", 
+		cvs_user, ldap_host, ldap_port, domain);
+#endif
 
 	retval = pam_set_data(pamh, EFFECTIVE_USER_MODULE_DATA_NAME, (void *) cvs_user, NULL);
 	if(retval != PAM_SUCCESS)
@@ -278,14 +282,18 @@ PAM_EXTERN int pam_sm_authenticate(pam_handle_t *pamh, int flags, int argc, cons
 
 PAM_EXTERN int pam_sm_setcred(pam_handle_t *pamh, int flags, int argc, const char **argv)
 {
-	// log_call(pamh, "pam_sm_setcred", argc, argv);
+#ifdef DEBUG
+	log_call(pamh, "pam_sm_setcred", argc, argv);
+#endif
 	return PAM_SUCCESS;
 }
 
 
 PAM_EXTERN int pam_sm_acct_mgmt(pam_handle_t *pamh, int flags, int argc, const char **argv)
 {
-	// log_call(pamh, "pam_sm_acct_mgmt", argc, argv);
+#ifdef DEBUG
+	log_call(pamh, "pam_sm_acct_mgmt", argc, argv);
+#endif
 	return PAM_SUCCESS;
 }
 
@@ -295,13 +303,17 @@ PAM_EXTERN int pam_sm_open_session(pam_handle_t *pamh, int flags, int argc, cons
 	int   retval;
 	char *effective_user;
 
-	// log_call(pamh, "pam_sm_open_session", argc, argv);
-
+#ifdef DEBUG
+	log_call(pamh, "pam_sm_open_session", argc, argv);
+#endif
+	
 	// set the effective user to use when accessing the repository
 	retval = pam_get_data(pamh, EFFECTIVE_USER_MODULE_DATA_NAME, (const void **) &effective_user);
 	if(retval == PAM_SUCCESS)
 	{
-		// syslog(LOG_NOTICE, "Setting effective user to %s", effective_user);
+#ifdef DEBUG
+		syslog(LOG_NOTICE, "Setting effective user to %s", effective_user);
+#endif
 		pam_set_item(pamh, PAM_USER, effective_user);
 	}
 	return retval;
@@ -310,7 +322,9 @@ PAM_EXTERN int pam_sm_open_session(pam_handle_t *pamh, int flags, int argc, cons
 
 PAM_EXTERN int pam_sm_close_session(pam_handle_t *pamh, int flags, int argc, const char **argv)
 {
-	// log_call(pamh, "pam_sm_close_session", argc, argv);
+#ifdef DEBUG
+	log_call(pamh, "pam_sm_close_session", argc, argv);
+#endif
 	return PAM_SUCCESS;
 }
 
