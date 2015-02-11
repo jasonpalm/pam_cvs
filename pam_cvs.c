@@ -1,6 +1,25 @@
-/*******************************************************************************
- * Copyright (c) 2015 Jason Palm
- * See LICENSE file for licensing.
+/*
+The MIT License (MIT)
+
+Copyright (c) 2015 Jason Palm
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
  */
 
 #define PAM_SM_ACCOUNT
@@ -20,6 +39,7 @@
 #define MODULE_SO_NAME "pam_module.so"
 #define EFFECTIVE_USER_MODULE_DATA_NAME "cvs_effective_user"
 #define IND "  "
+#define DOMAIN_SEP "\\"
 
 void log_call(pam_handle_t *pamh, const char *func_name, int argc, const char **argv);
 void log_pam_item(pam_handle_t *pamh, char *item_name, int item_type);
@@ -103,9 +123,11 @@ void log_pam_item(pam_handle_t *pamh, char *item_name, int item_type)
 
 void show_usage()
 {
-	syslog(LOG_ERR, "Usage: %s cvs_user ldap_host ldap_port", MODULE_SO_NAME);
+	syslog(LOG_ERR, "Usage: %s cvs_user ldap_host ldap_port ads_domain", MODULE_SO_NAME);
     syslog(LOG_ERR, "(Ignore any message below saying \"user has no password\","
         " which comes from CVS and is innacurate).");
+	
+	// CVS receives this and will display it to the user.
 	fprintf(stderr, "Error message sent to syslog (AUTHPRIV)\n");
 }	
 
@@ -165,14 +187,17 @@ PAM_EXTERN int pam_sm_authenticate(pam_handle_t *pamh, int flags, int argc, cons
 	const char *cvs_user;
 	const char *ldap_host;
 	int         ldap_port;
+	const char *domain;
+	
 	LDAP       *ldap;
 
 	char *username;
 	char *password;
+	char *ldap_username;
 
 	// log_call(pamh, "pam_sm_authenticate", argc, argv);
 
-	if(argc != 3)
+	if(argc != 4)
 	{
 		show_usage();
 		return PAM_AUTHINFO_UNAVAIL;
@@ -181,6 +206,7 @@ PAM_EXTERN int pam_sm_authenticate(pam_handle_t *pamh, int flags, int argc, cons
 	cvs_user  = argv[0];
 	ldap_host = argv[1];
 	sscanf(argv[2], "%d", &ldap_port);
+	domain = argv[3];
 
 	if(ldap_port < 0 || ldap_port > 65535)
 	{
@@ -188,7 +214,8 @@ PAM_EXTERN int pam_sm_authenticate(pam_handle_t *pamh, int flags, int argc, cons
 		return PAM_AUTHINFO_UNAVAIL;
 	}
 
-	// syslog(LOG_NOTICE, "Using effective user %s and LDAP %s:%d", cvs_user, ldap_host, ldap_port);
+	// syslog(LOG_NOTICE, "Using effective user %s, LDAP %s:%d, and domain %s", 
+	// 	cvs_user, ldap_host, ldap_port, domain);
 
 	retval = pam_set_data(pamh, EFFECTIVE_USER_MODULE_DATA_NAME, (void *) cvs_user, NULL);
 	if(retval != PAM_SUCCESS)
@@ -220,20 +247,32 @@ PAM_EXTERN int pam_sm_authenticate(pam_handle_t *pamh, int flags, int argc, cons
 		return PAM_AUTHINFO_UNAVAIL;
 	} 
 	
-    retval = ldap_simple_bind_s(ldap, username, password);
+	ldap_username = malloc(strlen(domain) + strlen(DOMAIN_SEP) + strlen(username) + 1);
+	if(!ldap_username)
+	{
+		syslog(LOG_ERR, "Failed allocating memory for ldap_username: %s", strerror(errno));
+		return PAM_AUTHINFO_UNAVAIL;
+	}
+	sprintf(ldap_username, "%s" DOMAIN_SEP "%s", domain, username);
+	
+    retval = ldap_simple_bind_s(ldap, ldap_username, password);
 	if(retval != LDAP_SUCCESS)
 	{
     	syslog(LOG_ERR, "Failed to authenticate user %s with LDAP at %s:%d : %s",
-        	username, ldap_host, ldap_port, ldap_err2string(retval));
+        	ldap_username, ldap_host, ldap_port, ldap_err2string(retval));
         syslog(LOG_ERR, "(Ignore any message below saying \"user has no password\","
             " which comes from CVS and is innacurate).");
-	
-		return PAM_AUTH_ERR;
+		retval = PAM_AUTH_ERR;
 	}
 
-	syslog(LOG_NOTICE, "Authenticated %s with LDAP.", username);
+	if(retval == PAM_SUCCESS)
+	{
+		syslog(LOG_NOTICE, "Authenticated %s with LDAP.", ldap_username);
+	}
 
-	return PAM_SUCCESS;
+	free(ldap_username);
+
+	return retval;
 }	 
 
 
@@ -262,6 +301,7 @@ PAM_EXTERN int pam_sm_open_session(pam_handle_t *pamh, int flags, int argc, cons
 	retval = pam_get_data(pamh, EFFECTIVE_USER_MODULE_DATA_NAME, (const void **) &effective_user);
 	if(retval == PAM_SUCCESS)
 	{
+		// syslog(LOG_NOTICE, "Setting effective user to %s", effective_user);
 		pam_set_item(pamh, PAM_USER, effective_user);
 	}
 	return retval;
