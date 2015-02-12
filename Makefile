@@ -20,8 +20,12 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+CC=gcc
+
 CFLAGS_32 = -std=gnu99 -DLDAP_DEPRECATED -Wall -g 
 CFLAGS_64 = -std=gnu99 -DLDAP_DEPRECATED -Wall -g -m64
+
+CPPFLAGS=
 
 PAM_DIR_32 = /lib/security/
 PAM_DIR_64 = /lib64/security/
@@ -33,8 +37,8 @@ override CFLAGS  += $(CFLAGS_$(ARCH))
 all: pam
 
 pam: pam_cvs.c
-	gcc $(CFLAGS) -fPIC -c pam_cvs.c
-	gcc $(CFLAGS) -shared -o pam_cvs.so pam_cvs.o -lpam -lldap
+	$(CC) $(CFLAGS) $(CPPFLAGS) -fPIC -c pam_cvs.c
+	$(CC) $(CFLAGS) $(CPPFLAGS) -shared -o pam_cvs.so pam_cvs.o -lpam -lldap
 
 install: pam
 	install -v -oroot -groot -m0755 pam_cvs.so $(PAM_DIR)
