@@ -22,14 +22,19 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
  */
 
+#define _GNU_SOURCE
+
 #define PAM_SM_ACCOUNT
 #define PAM_SM_AUTH
 #define PAM_SM_SESSION
 
+#include <ctype.h>
 #include <errno.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 #include <ldap.h>
 #include <security/pam_appl.h>
@@ -43,7 +48,19 @@ SOFTWARE.
 
 void log_call(pam_handle_t *pamh, const char *func_name, int argc, const char **argv);
 void log_pam_item(pam_handle_t *pamh, char *item_name, int item_type);
+bool file_exists(const char *path);
+bool file_contains_username(const char *path, const char *username);
+char *make_path(const char *dir, const char *filename);
 void show_usage();
+
+
+void show_usage()
+{
+	syslog(LOG_ERR, "Usage: %s cvs_user cvsroot ldap_host ldap_port ads_domain", MODULE_SO_NAME);
+    syslog(LOG_ERR, "(Ignore any message below saying \"user has no password\","
+        " which comes from CVS and is innacurate).");
+}	
+
 
 /*******************************************************************************
  * Called when the .so is loaded.
@@ -56,6 +73,7 @@ void __attribute__ ((constructor)) so_loaded(void)
  	openlog("pam_tims_cvs", LOG_CONS | LOG_PID, LOG_AUTHPRIV);
 }
 
+
 /*******************************************************************************
  * Called when the .so is unloaded.
  *
@@ -66,6 +84,7 @@ void __attribute__ ((destructor)) so_unloaded(void)
 {
 	closelog();
 }
+
 
 void log_call(pam_handle_t *pamh, const char *func_name, int argc, const char **argv)
 {
@@ -103,6 +122,7 @@ void log_call(pam_handle_t *pamh, const char *func_name, int argc, const char **
 	log_pam_item(pamh, "PAM_OLDAUTHTOK  ", PAM_OLDAUTHTOK);
 }
 
+
 void log_pam_item(pam_handle_t *pamh, char *item_name, int item_type)
 {
 	char *value;
@@ -121,15 +141,6 @@ void log_pam_item(pam_handle_t *pamh, char *item_name, int item_type)
 	}
 }
 
-void show_usage()
-{
-	syslog(LOG_ERR, "Usage: %s cvs_user ldap_host ldap_port ads_domain", MODULE_SO_NAME);
-    syslog(LOG_ERR, "(Ignore any message below saying \"user has no password\","
-        " which comes from CVS and is innacurate).");
-	
-	// CVS receives this and will display it to the user.
-	fprintf(stderr, "Error message sent to syslog (AUTHPRIV)\n");
-}	
 
 int cvs_get_password(pam_handle_t *pamh, char **password)
 {
@@ -180,10 +191,80 @@ int cvs_get_password(pam_handle_t *pamh, char **password)
 	return PAM_SUCCESS;
 }
 
+char *make_path(const char *dir, const char *filename)
+{
+	char *path = malloc(strlen(dir) + 1 + strlen(filename) + 1);
+	if(path)
+	{
+		sprintf(path, "%s/%s", dir, filename);
+	}
+	return path;
+}
+
+/*
+	file_exists
+*/
+bool file_exists(const char *path)
+{
+	bool exists = access(path, F_OK) == 0;
+	
+	syslog(LOG_NOTICE, "File %s exists? %s", path, exists ? "true" : "false");
+	
+	return exists;
+}
+
+/*
+	file_contains_user
+*/
+bool file_contains_username(const char *path, const char *username)
+{
+	char *buf = 0;
+	size_t buflen;
+	bool found = false;
+	
+	FILE *fp = fopen(path, "r");
+	if(!fp) return false;
+
+	while(getline(&buf, &buflen, fp) != EOF)
+	{
+		// trim leading whitespace
+		char *p = buf;
+		while(*p && isspace(*p)) p++;
+
+		// skip comments
+		if(*p == '#') continue;
+		
+		char *start = p;
+		
+		// trim trailing whitespace
+		while(*p) p++;
+		while(p > start && isspace(*--p)) *p = 0; 
+	    
+		if(strcmp(start, username) == 0)
+		{
+			found = true;
+			break;
+		}
+	}
+	if (buf) free(buf);
+	fclose(fp);
+	
+	return found;
+}
+
+
+/*******************************************************************************
+ * PAM callbacks
+ ******************************************************************************/
+
+/*
+	pam_sm_authenticate
+*/
 PAM_EXTERN int pam_sm_authenticate(pam_handle_t *pamh, int flags, int argc, const char **argv)
 {
 	int   retval;
 
+	const char *cvsroot;
 	const char *cvs_user;
 	const char *ldap_host;
 	int         ldap_port;
@@ -199,16 +280,17 @@ PAM_EXTERN int pam_sm_authenticate(pam_handle_t *pamh, int flags, int argc, cons
 	log_call(pamh, "pam_sm_authenticate", argc, argv);
 #endif
 
-	if(argc != 4)
+	if(argc != 5)
 	{
 		show_usage();
 		return PAM_AUTHINFO_UNAVAIL;
 	}
 
 	cvs_user  = argv[0];
-	ldap_host = argv[1];
-	sscanf(argv[2], "%d", &ldap_port);
-	domain = argv[3];
+	cvsroot   = argv[1];
+	ldap_host = argv[2];
+	sscanf(argv[3], "%d", &ldap_port);
+	domain = argv[4];
 
 	if(ldap_port < 0 || ldap_port > 65535)
 	{
@@ -275,11 +357,41 @@ PAM_EXTERN int pam_sm_authenticate(pam_handle_t *pamh, int flags, int argc, cons
 	}
 
 	free(ldap_username);
+	
+	bool has_access = true;
+	char *readers = make_path(cvsroot, "readers");
+	char *writers = make_path(cvsroot, "writers");
+	
+	if(errno == ENOMEM)
+	{
+		syslog(LOG_ERR, "Fatal error: couldn't allocate memory.");
+		return PAM_AUTHINFO_UNAVAIL;
+	}
+	
+	if(file_exists(readers) || file_exists(writers))
+	{
+#ifdef DEBUG
+		syslog(LOG_NOTICE, "CVSROOT readers or writers file exists. Turning off access unless the user is in one of the files.");
+#endif
+		has_access = false;
+	}
+	
+	has_access |= file_contains_username(readers, username);
+	has_access |= file_contains_username(writers, username);
+	
+	if(!has_access)
+	{
+		retval = PAM_AUTH_ERR;
+		syslog(LOG_ERR, "The user %s is not in the 'readers' or 'writers' file.", username);
+	}
 
 	return retval;
 }	 
 
 
+/*
+	pam_sm_setcred
+*/
 PAM_EXTERN int pam_sm_setcred(pam_handle_t *pamh, int flags, int argc, const char **argv)
 {
 #ifdef DEBUG
@@ -289,6 +401,9 @@ PAM_EXTERN int pam_sm_setcred(pam_handle_t *pamh, int flags, int argc, const cha
 }
 
 
+/*
+	pam_sm_acct_mgmt
+*/
 PAM_EXTERN int pam_sm_acct_mgmt(pam_handle_t *pamh, int flags, int argc, const char **argv)
 {
 #ifdef DEBUG
@@ -298,6 +413,9 @@ PAM_EXTERN int pam_sm_acct_mgmt(pam_handle_t *pamh, int flags, int argc, const c
 }
 
 
+/*
+	pam_sm_open_session
+*/
 PAM_EXTERN int pam_sm_open_session(pam_handle_t *pamh, int flags, int argc, const char **argv)
 {
 	int   retval;
@@ -320,6 +438,9 @@ PAM_EXTERN int pam_sm_open_session(pam_handle_t *pamh, int flags, int argc, cons
 }
 
 
+/*
+	pam_sm_close_session
+*/
 PAM_EXTERN int pam_sm_close_session(pam_handle_t *pamh, int flags, int argc, const char **argv)
 {
 #ifdef DEBUG
@@ -327,4 +448,5 @@ PAM_EXTERN int pam_sm_close_session(pam_handle_t *pamh, int flags, int argc, con
 #endif
 	return PAM_SUCCESS;
 }
+
 
