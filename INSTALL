@@ -49,12 +49,22 @@ To install this module:
 	
 5. Ensure that the user that CVS runs as owns all repository files.
 	
+NOTES:
 
-When authenticating, supply the username *without* the ADS domain. E.g.
+1) When authenticating, supply the username *without* the ADS domain. E.g.
 
 	user.name
 	
 
-The module logs to syslog using AUTHPRIV. Check /var/log/secure (or the appropriate log for your system)
-for logging output.
+2) The module logs to syslog using AUTHPRIV. Check /var/log/secure (or the appropriate log for your system)
+   for logging output.
 
+3) Since CVS doesn't check the passwd file when authenticaing using PAM, and since you may not want 
+   everyone in your LDAP directory to have access, the module checks the readers and writers files
+   as the last step of authentication:
+   
+   - If neither file exists, all LDAP-authenticated users have access. 
+   - If either or both files exist, the user has to be in at least one of them to complete authentication.
+   - After a user has been authenticated, CVS still uses the readers and writers file (in the documented way) 
+     to determine whether a user has write access to the repository.
+    
