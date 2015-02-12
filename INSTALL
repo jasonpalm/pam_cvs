@@ -21,15 +21,16 @@ To install this module:
 
 		#%PAM-1.0
 
-		auth            sufficient      pam_cvs.so cvs_user ldap_host ldap_port ads_domain
+		auth            sufficient      pam_cvs.so cvs_user cvsroot ldap_host ldap_port ads_domain
 		account         sufficient      pam_cvs.so
 		session         sufficient      pam_cvs.so
 	
 	# NOTE the arguments to pam_cvs.so in the auth section: 
 	# a) the account CVS runs as, 
-	# b) the LDAP host to authenticate against, and 
-	# c) the LDAP port 
-	# d) the Active Directory Server Domain. Will be automatically prepended to the supplied username
+	# b) the absolute path to the CVSROOT directory of the repository
+	# c) the LDAP host to authenticate against, and 
+	# d) the LDAP port 
+	# e) the Active Directory Server Domain. Will be automatically prepended to the supplied username
 	     with a '\' separator.
 	
 3. Build and install the pam_cvs.so PAM module:
