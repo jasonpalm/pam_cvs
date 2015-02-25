@@ -70,7 +70,7 @@ void show_usage()
  */
 void __attribute__ ((constructor)) so_loaded(void)
 {
- 	openlog("pam_tims_cvs", LOG_CONS | LOG_PID, LOG_AUTHPRIV);
+ 	openlog("pam_tims_cvs", LOG_PID, LOG_AUTHPRIV);
 }
 
 
