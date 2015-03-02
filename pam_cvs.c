@@ -360,7 +360,6 @@ PAM_EXTERN int pam_sm_authenticate(pam_handle_t *pamh, int flags, int argc, cons
 		syslog(LOG_NOTICE, "Authenticated %s with LDAP.", ldap_username);
 	}
 
-	free(ldap);
 	free(ldap_username);
 	
 	bool has_access = true;
