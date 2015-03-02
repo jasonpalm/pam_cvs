@@ -342,11 +342,7 @@ PAM_EXTERN int pam_sm_authenticate(pam_handle_t *pamh, int flags, int argc, cons
 	sprintf(ldap_username, "%s" DOMAIN_SEP "%s", domain, username);
 	
     retval = ldap_simple_bind_s(ldap, ldap_username, password);
-	if(retval == LDAP_SUCCESS) 
-	{
-		ldap_unbind_s(ldap);
-	} 
-	else 
+	if(retval != LDAP_SUCCESS) 
 	{
     	syslog(LOG_ERR, "Failed to authenticate user %s with LDAP at %s:%d : %s",
         	ldap_username, ldap_host, ldap_port, ldap_err2string(retval));
@@ -360,6 +356,7 @@ PAM_EXTERN int pam_sm_authenticate(pam_handle_t *pamh, int flags, int argc, cons
 		syslog(LOG_NOTICE, "Authenticated %s with LDAP.", ldap_username);
 	}
 
+	ldap_unbind_s(ldap);
 	free(ldap_username);
 	
 	bool has_access = true;
