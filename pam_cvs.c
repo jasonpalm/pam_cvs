@@ -150,7 +150,7 @@ int cvs_get_password(pam_handle_t *pamh, char **password)
 	struct pam_message  *mesg;
 	struct pam_response *resp;
 
-	// Initialze the password to NULL so we know not to free it if the function fails.
+	// Initialize the password to NULL so we know not to free it if the function fails.
 	*password = NULL;
 
 	// Get the PAM conversation function. 
@@ -207,8 +207,10 @@ char *make_path(const char *dir, const char *filename)
 bool file_exists(const char *path)
 {
 	bool exists = access(path, F_OK) == 0;
-	
+
+#ifdef DEBUG
 	syslog(LOG_NOTICE, "File %s exists? %s", path, exists ? "true" : "false");
+#endif
 	
 	return exists;
 }
